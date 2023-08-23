@@ -1,56 +1,35 @@
-import { useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import './App.css'
 import { Movies } from './components/Movies'
 import { useMovies } from './hooks/useMovies'
-import { useState } from 'react'
-import { useEffect } from 'react'
+import { useSearch } from './hooks/useSearch'
+import debounce from 'just-debounce-it'
 
-const API_URL = 'https://www.omdbapi.com/'
-const API_KEY = '4287ad07'
-
-function useSearch() {
-  const [search, updateSearch] = useState('')
-  const [error, setError] = useState('')
-  const isFirstInput = useRef(true)
-  const counter = useRef(0) //Dato que persiste entre renders
-
-  useEffect(() => {
-    if(isFirstInput.current) {
-      isFirstInput.current = search === '' 
-      return
-    }
-
-    if(search === '') {
-      setError('No se puede buscar una película vacía')
-      return
-    }
-
-    if(search.length < 3) {
-      setError('La búsqueda debe tener al menos 3 carácteres')
-      return
-    }
-
-    setError('')
-  }, [search])
-
-  return { search, updateSearch, error}
-}
 
 function App() {
-  const { movies } = useMovies()
+  const [sort, setSort] = useState(false)
   const { search, updateSearch, error } = useSearch()
+  const { movies, loading, getMovies } = useMovies({search, sort})
+
+  const debouncedGetMovies = useCallback(
+    debounce(search => {
+      getMovies(search)
+    }, 300)
+  ,[])
 
   const handleSubmit = (event) => {
     event.preventDefault()
-    const data = new FormData(event.target)
-
-    //Recupero el dato de query del formulario
-    const { search } = Object.fromEntries(new window.FormData(event.target))
-    if(search === '') return
+    debouncedGetMovies({search})
   }
 
   const handleChange = (event) => {
-    updateSearch(event.target.value)
+    const newSearch = event.target.value
+    updateSearch(newSearch)
+    debouncedGetMovies({search: newSearch})
+  }
+
+  const handleSort = () => {
+    setSort(!sort)
   }
 
   return (
@@ -59,12 +38,15 @@ function App() {
         <h1>Buscador de películas</h1>
         <form className='form' onSubmit={handleSubmit}>
           <input name='search' onChange={handleChange} value={search} placeholder='Avengers, Star Wars, The Matrix...' type='text'/>
+          <input type='checkbox' onChange={handleSort} checked={sort}></input>
           <button type='submit'>Buscar</button>
         </form>
       </header>
       {error && (<p style={{color: 'red'}}>{error}</p>) }
       <main>
-        <Movies movies={movies} />
+        {
+          loading ? <p>Cargando...</p> : <Movies movies={movies} />
+        }
       </main>
     </div>
   )
